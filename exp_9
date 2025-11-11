@@ -1,0 +1,312 @@
+// =========================================================
+// Mini Project: Online Student Management System
+// Using Spring + Hibernate + MySQL
+// =========================================================
+
+import org.springframework.context.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.hibernate.*;
+import org.hibernate.cfg.Configuration;
+import jakarta.persistence.*;
+import java.util.*;
+
+// =========================================================
+// 1️⃣ Model Layer — Student and Course Entities
+// =========================================================
+@Entity
+@Table(name = "courses")
+class Course {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int courseId;
+    private String courseName;
+    private String duration;
+
+    public Course() {}
+    public Course(String name, String duration) {
+        this.courseName = name;
+        this.duration = duration;
+    }
+
+    // Getters and Setters
+    public int getCourseId() { return courseId; }
+    public String getCourseName() { return courseName; }
+    public String getDuration() { return duration; }
+    public void setCourseId(int id) { this.courseId = id; }
+    public void setCourseName(String name) { this.courseName = name; }
+    public void setDuration(String duration) { this.duration = duration; }
+
+    @Override
+    public String toString() {
+        return courseId + " - " + courseName + " (" + duration + ")";
+    }
+}
+
+@Entity
+@Table(name = "students")
+class Student {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int studentId;
+    private String name;
+    private double balance;
+
+    @ManyToOne
+    @JoinColumn(name = "course_id")
+    private Course course;
+
+    public Student() {}
+    public Student(String name, Course course, double balance) {
+        this.name = name;
+        this.course = course;
+        this.balance = balance;
+    }
+
+    // Getters and Setters
+    public int getStudentId() { return studentId; }
+    public String getName() { return name; }
+    public double getBalance() { return balance; }
+    public Course getCourse() { return course; }
+
+    public void setStudentId(int id) { this.studentId = id; }
+    public void setName(String name) { this.name = name; }
+    public void setBalance(double balance) { this.balance = balance; }
+    public void setCourse(Course course) { this.course = course; }
+
+    @Override
+    public String toString() {
+        return studentId + " | " + name + " | Course: " +
+                (course != null ? course.getCourseName() : "N/A") +
+                " | Balance: ₹" + balance;
+    }
+}
+
+// =========================================================
+// 2️⃣ Hibernate Utility (Singleton)
+// =========================================================
+class HibernateUtil {
+    private static SessionFactory factory;
+
+    static {
+        try {
+            factory = new Configuration()
+                    .configure("hibernate.cfg.xml")
+                    .addAnnotatedClass(Student.class)
+                    .addAnnotatedClass(Course.class)
+                    .buildSessionFactory();
+        } catch (Throwable ex) {
+            System.err.println("SessionFactory creation failed: " + ex);
+            throw new ExceptionInInitializerError(ex);
+        }
+    }
+
+    public static SessionFactory getSessionFactory() {
+        return factory;
+    }
+}
+
+// =========================================================
+// 3️⃣ DAO Layer — StudentDAO for CRUD
+// =========================================================
+class StudentDAO {
+
+    public void addStudent(Student s) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        session.save(s);
+        tx.commit();
+        session.close();
+        System.out.println("✅ Student added successfully!");
+    }
+
+    public List<Student> getAllStudents() {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        List<Student> list = session.createQuery("from Student", Student.class).list();
+        session.close();
+        return list;
+    }
+
+    public Student getStudentById(int id) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Student s = session.get(Student.class, id);
+        session.close();
+        return s;
+    }
+
+    public void updateStudent(Student s) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        session.update(s);
+        tx.commit();
+        session.close();
+        System.out.println("✅ Student updated successfully!");
+    }
+
+    public void deleteStudent(int id) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        Student s = session.get(Student.class, id);
+        if (s != null) session.delete(s);
+        tx.commit();
+        session.close();
+        System.out.println("✅ Student deleted successfully!");
+    }
+}
+
+// =========================================================
+// 4️⃣ Service Layer — FeeService with Transactions
+// =========================================================
+@Service
+class FeeService {
+    @Transactional
+    public void makePayment(Student s, double amount) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        try {
+            if (s.getBalance() < amount) throw new Exception("Insufficient balance!");
+            s.setBalance(s.getBalance() - amount);
+            session.update(s);
+            tx.commit();
+            System.out.println("✅ Payment of ₹" + amount + " successful for " + s.getName());
+        } catch (Exception e) {
+            tx.rollback();
+            System.out.println("❌ Payment failed: " + e.getMessage());
+        } finally {
+            session.close();
+        }
+    }
+
+    @Transactional
+    public void refund(Student s, double amount) {
+        Session session = HibernateUtil.getSessionFactory().openSession();
+        Transaction tx = session.beginTransaction();
+        try {
+            s.setBalance(s.getBalance() + amount);
+            session.update(s);
+            tx.commit();
+            System.out.println("✅ Refund of ₹" + amount + " processed for " + s.getName());
+        } catch (Exception e) {
+            tx.rollback();
+            System.out.println("❌ Refund failed: " + e.getMessage());
+        } finally {
+            session.close();
+        }
+    }
+}
+
+// =========================================================
+// 5️⃣ Spring Configuration — AppConfig
+// =========================================================
+@Configuration
+@ComponentScan(basePackages = "com.project")
+class AppConfig {
+
+    @Bean
+    public Course defaultCourse() {
+        return new Course("Java Full Stack", "6 months");
+    }
+
+    @Bean
+    public StudentDAO studentDAO() {
+        return new StudentDAO();
+    }
+
+    @Bean
+    public FeeService feeService() {
+        return new FeeService();
+    }
+}
+
+// =========================================================
+// 6️⃣ Controller / Main Application
+// =========================================================
+public class OnlineStudentManagementSystem {
+
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context =
+                new AnnotationConfigApplicationContext(AppConfig.class);
+
+        StudentDAO dao = context.getBean(StudentDAO.class);
+        FeeService feeService = context.getBean(FeeService.class);
+        Course defaultCourse = context.getBean(Course.class);
+
+        Scanner sc = new Scanner(System.in);
+        int choice;
+
+        do {
+            System.out.println("\n===== Online Student Management System =====");
+            System.out.println("1. Add Student");
+            System.out.println("2. View All Students");
+            System.out.println("3. Update Student");
+            System.out.println("4. Delete Student");
+            System.out.println("5. Make Fee Payment");
+            System.out.println("6. Refund Fee");
+            System.out.println("0. Exit");
+            System.out.print("Enter choice: ");
+            choice = sc.nextInt();
+
+            switch (choice) {
+                case 1 -> {
+                    sc.nextLine();
+                    System.out.print("Enter name: ");
+                    String name = sc.nextLine();
+                    System.out.print("Enter initial balance: ");
+                    double bal = sc.nextDouble();
+                    dao.addStudent(new Student(name, defaultCourse, bal));
+                }
+
+                case 2 -> {
+                    List<Student> students = dao.getAllStudents();
+                    students.forEach(System.out::println);
+                }
+
+                case 3 -> {
+                    System.out.print("Enter student ID to update: ");
+                    int id = sc.nextInt();
+                    sc.nextLine();
+                    Student s = dao.getStudentById(id);
+                    if (s != null) {
+                        System.out.print("Enter new name: ");
+                        s.setName(sc.nextLine());
+                        dao.updateStudent(s);
+                    } else System.out.println("❌ Student not found!");
+                }
+
+                case 4 -> {
+                    System.out.print("Enter student ID to delete: ");
+                    int id = sc.nextInt();
+                    dao.deleteStudent(id);
+                }
+
+                case 5 -> {
+                    System.out.print("Enter student ID: ");
+                    int id = sc.nextInt();
+                    Student s = dao.getStudentById(id);
+                    if (s != null) {
+                        System.out.print("Enter payment amount: ");
+                        double amt = sc.nextDouble();
+                        feeService.makePayment(s, amt);
+                    } else System.out.println("❌ Student not found!");
+                }
+
+                case 6 -> {
+                    System.out.print("Enter student ID: ");
+                    int id = sc.nextInt();
+                    Student s = dao.getStudentById(id);
+                    if (s != null) {
+                        System.out.print("Enter refund amount: ");
+                        double amt = sc.nextDouble();
+                        feeService.refund(s, amt);
+                    } else System.out.println("❌ Student not found!");
+                }
+
+                case 0 -> System.out.println("Exiting system...");
+                default -> System.out.println("❌ Invalid choice!");
+            }
+
+        } while (choice != 0);
+
+        context.close();
+        sc.close();
+    }
+}
