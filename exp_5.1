@@ -1,0 +1,228 @@
+// ================================================================
+// Experiment 2.2: Autoboxing, Serialization, and File Handling
+// Parts (a), (b), and (c) Combined
+// ================================================================
+
+import java.io.*;
+import java.util.*;
+
+// ================================================================
+// (b) Serializable Student Class
+// ================================================================
+class Student implements Serializable {
+    private static final long serialVersionUID = 1L;
+
+    int studentID;
+    String name;
+    String grade;
+
+    Student(int studentID, String name, String grade) {
+        this.studentID = studentID;
+        this.name = name;
+        this.grade = grade;
+    }
+
+    @Override
+    public String toString() {
+        return "Student ID: " + studentID + ", Name: " + name + ", Grade: " + grade;
+    }
+}
+
+// ================================================================
+// (c) Employee Class for File Handling
+// ================================================================
+class Employee {
+    int id;
+    String name;
+    String designation;
+    double salary;
+
+    Employee(int id, String name, String designation, double salary) {
+        this.id = id;
+        this.name = name;
+        this.designation = designation;
+        this.salary = salary;
+    }
+
+    @Override
+    public String toString() {
+        return id + "," + name + "," + designation + "," + salary;
+    }
+
+    public static Employee fromString(String line) {
+        String[] parts = line.split(",");
+        if (parts.length == 4) {
+            return new Employee(Integer.parseInt(parts[0]),
+                    parts[1],
+                    parts[2],
+                    Double.parseDouble(parts[3]));
+        }
+        return null;
+    }
+}
+
+// ================================================================
+// Main Class
+// ================================================================
+public class AutoboxingSerializationFileHandling {
+
+    private static final String EMPLOYEE_FILE = "employees.txt";
+    private static final String STUDENT_FILE = "student.ser";
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int choice;
+
+        do {
+            System.out.println("\n==================== JAVA EXPERIMENT 2.2 ====================");
+            System.out.println("1. Sum of Integers (Autoboxing & Unboxing)");
+            System.out.println("2. Serialize and Deserialize Student Object");
+            System.out.println("3. Employee Management (File Handling)");
+            System.out.println("0. Exit");
+            System.out.print("Enter your choice: ");
+            choice = sc.nextInt();
+            sc.nextLine(); // consume newline
+
+            switch (choice) {
+                case 1 -> performAutoboxingSum(sc);
+                case 2 -> performSerialization(sc);
+                case 3 -> employeeMenu(sc);
+                case 0 -> System.out.println("✅ Exiting program...");
+                default -> System.out.println("❌ Invalid choice! Try again.");
+            }
+
+        } while (choice != 0);
+
+        sc.close();
+    }
+
+    // ============================================================
+    // (a) Autoboxing & Unboxing Sum
+    // ============================================================
+    public static void performAutoboxingSum(Scanner sc) {
+        List<Integer> numbers = new ArrayList<>();
+
+        System.out.println("\nEnter integers separated by space:");
+        String[] inputs = sc.nextLine().split(" ");
+
+        // Autoboxing: converting int to Integer automatically
+        for (String s : inputs) {
+            try {
+                Integer num = Integer.parseInt(s); // parsing String → int → Integer
+                numbers.add(num);
+            } catch (NumberFormatException e) {
+                System.out.println("Skipping invalid input: " + s);
+            }
+        }
+
+        // Unboxing: Integer → int during sum
+        int sum = 0;
+        for (Integer n : numbers) {
+            sum += n; // unboxing happens automatically
+        }
+
+        System.out.println("Numbers: " + numbers);
+        System.out.println("Total Sum = " + sum);
+    }
+
+    // ============================================================
+    // (b) Serialization & Deserialization
+    // ============================================================
+    public static void performSerialization(Scanner sc) {
+        try {
+            System.out.print("\nEnter Student ID: ");
+            int id = sc.nextInt();
+            sc.nextLine();
+            System.out.print("Enter Name: ");
+            String name = sc.nextLine();
+            System.out.print("Enter Grade: ");
+            String grade = sc.nextLine();
+
+            Student student = new Student(id, name, grade);
+
+            // Serialize
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(STUDENT_FILE));
+            oos.writeObject(student);
+            oos.close();
+            System.out.println("✅ Student serialized successfully to " + STUDENT_FILE);
+
+            // Deserialize
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(STUDENT_FILE));
+            Student deserialized = (Student) ois.readObject();
+            ois.close();
+
+            System.out.println("📦 Deserialized Student Object:");
+            System.out.println(deserialized);
+
+        } catch (Exception e) {
+            System.out.println("❌ Error during serialization/deserialization: " + e.getMessage());
+        }
+    }
+
+    // ============================================================
+    // (c) Employee Management with File Handling
+    // ============================================================
+    public static void employeeMenu(Scanner sc) {
+        int choice;
+        do {
+            System.out.println("\n========= Employee Management System =========");
+            System.out.println("1. Add Employee");
+            System.out.println("2. Display All Employees");
+            System.out.println("0. Back to Main Menu");
+            System.out.print("Enter choice: ");
+            choice = sc.nextInt();
+            sc.nextLine();
+
+            switch (choice) {
+                case 1 -> addEmployee(sc);
+                case 2 -> displayEmployees();
+                case 0 -> System.out.println("Returning to main menu...");
+                default -> System.out.println("Invalid option! Try again.");
+            }
+        } while (choice != 0);
+    }
+
+    private static void addEmployee(Scanner sc) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(EMPLOYEE_FILE, true))) {
+            System.out.print("Enter Employee ID: ");
+            int id = sc.nextInt();
+            sc.nextLine();
+            System.out.print("Enter Name: ");
+            String name = sc.nextLine();
+            System.out.print("Enter Designation: ");
+            String designation = sc.nextLine();
+            System.out.print("Enter Salary: ");
+            double salary = sc.nextDouble();
+            sc.nextLine();
+
+            Employee emp = new Employee(id, name, designation, salary);
+            writer.write(emp.toString());
+            writer.newLine();
+            System.out.println("✅ Employee record saved successfully.");
+
+        } catch (IOException e) {
+            System.out.println("❌ Error writing employee data: " + e.getMessage());
+        }
+    }
+
+    private static void displayEmployees() {
+        File file = new File(EMPLOYEE_FILE);
+        if (!file.exists()) {
+            System.out.println("⚠️ No employee records found.");
+            return;
+        }
+
+        System.out.println("\n--- Employee Records ---");
+        try (BufferedReader reader = new BufferedReader(new FileReader(EMPLOYEE_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                Employee emp = Employee.fromString(line);
+                if (emp != null)
+                    System.out.println("ID: " + emp.id + ", Name: " + emp.name +
+                            ", Designation: " + emp.designation + ", Salary: " + emp.salary);
+            }
+        } catch (IOException e) {
+            System.out.println("❌ Error reading employee data: " + e.getMessage());
+        }
+    }
+}
